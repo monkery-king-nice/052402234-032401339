@@ -54,7 +54,7 @@
     $('#homePage').hidden=mine;$('#minePage').hidden=!mine;
     $$('[data-nav]').forEach(a=>a.classList.toggle('active',a.dataset.nav===(mine?'mine':location.hash==='#guide'?'guide':'home')));
     if (location.hash==='#guide') setTimeout(()=>$('#guide').scrollIntoView({behavior:'smooth'}),0);
-    else window.scrollTo({top:0,behavior:'instant'});
+    else window.scrollTo({top:0,behavior:'auto'});
   }
   function openPublish(type='lost') {
     $('#publishForm').reset();
