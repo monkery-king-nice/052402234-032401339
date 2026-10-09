@@ -14,11 +14,10 @@
   };
   const seed = window.CampusSeed;
   const storage = window.localStorage;
-  const localOwnerId = M.getOwnerId(storage);
-  let ownerId = localOwnerId;
-  let shared = null, sharedReady = false, mutationBusy = false;
+  const ownerId = M.getOwnerId(storage);
+  let mutationBusy = false;
   const commentDrafts = new Map();
-  let commentBusy = false, commentLoadVersion = 0;
+  let commentBusy = false;
   let items = M.readItems(storage, seed);
   let filters = { query:'', type:'all', category:'all', status:'all', startDate:'', endDate:'' };
   let selectedId = null;
@@ -110,7 +109,7 @@
     $('#mineGrid').innerHTML=mine.length?mine.map(card).join(''):empty('还没有发布信息','你发布的寻物或招领信息会显示在这里。',true);
   }
   function renderAll() { renderHome();renderMine(); }
-  async function route() {
+  function route() {
     const mine=location.hash==='#mine';
     $('#homePage').hidden=mine;$('#minePage').hidden=!mine;
     $$('[data-nav]').forEach(a=>a.classList.toggle('active',a.dataset.nav===(mine?'mine':location.hash==='#guide'?'guide':'home')));
@@ -119,10 +118,9 @@
     if(location.hash.startsWith('#post/')){
       let id;
       try { id=decodeURIComponent(location.hash.slice(6)); } catch(_){notify('启事链接格式不正确');return;}
-      let item=items.find(x=>x.id===id);
-      if(!item&&sharedReady){await refreshShared();item=items.find(x=>x.id===id);}
+      const item=items.find(x=>x.id===id);
       if(item&&(!$('#detailDialog').open||selectedId!==item.id))detail(item);
-      else if(!item&&sharedReady)notify('启事不存在或已被删除');
+      else if(!item)notify('启事不存在或已被删除');
     }
   }
   function openPublish(type='lost') {
@@ -163,18 +161,20 @@
     $('#deleteError').textContent = '';
     $('#deleteDialog').showModal();
   }
-  async function confirmDelete() {
+  function confirmDelete() {
     if (!pendingDeleteId || mutationBusy) return;
     mutationBusy=true;
     const button=$('[data-action="confirm-delete"]');button.disabled=true;
     try {
       const id = pendingDeleteId;
-      if (shared) { await shared.request('/items/'+encodeURIComponent(id),'DELETE');items=items.filter(item=>item.id!==id); }
-      else commitItems(M.removeItem(items, id, ownerId));
+      commitItems(M.removeItem(items, id, ownerId));
+      let cleanupError='';
+      try { M.removeComments(storage,id); } catch(error) { cleanupError=error.message; }
       $('#deleteDialog').close();
       if (selectedId === id) { $('#detailDialog').close(); selectedId = null; }
       renderAll();
-      notify('发布已删除');
+      commentDrafts.delete(id);
+      notify(cleanupError||'发布及对应评论已删除');
     } catch (error) { $('#deleteError').textContent = error.message || '删除失败，请重试'; }
     finally { mutationBusy=false;button.disabled=false; }
   }
@@ -183,21 +183,19 @@
     const fallback=()=>{const el=document.createElement('textarea');el.value=item.contact;el.style.position='fixed';el.style.opacity='0';document.body.appendChild(el);el.select();const ok=document.execCommand('copy');el.remove();if(!ok)throw new Error('复制失败');};
     (navigator.clipboard?.writeText?navigator.clipboard.writeText(item.contact).catch(fallback):Promise.resolve().then(fallback)).then(()=>notify('联系方式已复制')).catch(()=>notify('复制失败，请手动复制'));
   }
-  async function submit(event) {
+  function submit(event) {
     event.preventDefault();
     if(mutationBusy)return;
     const form=event.currentTarget;
-    if(shared&&!sharedReady){notify('共享服务尚未连接，请先重试连接');return;}
     const draft=Object.fromEntries(new FormData(form));
     if (photoBusy) { notify('照片正在处理，请稍候再发布'); return; }
     if (photoError) { $('#photoError').textContent = photoError; $('#imageInput').focus(); notify('请重新选择照片，或先清除照片'); return; }
     draft.images=photos.slice();
     $$('[data-error]').forEach(el=>el.textContent='');
     try {
-      const local=M.createItem(draft,ownerId);
+      const item=M.createItem(draft,ownerId);
       mutationBusy=true;form.querySelector('[type="submit"]').disabled=true;
-      const item=shared?await shared.request('/items','POST',draft):local;
-      if(shared)items=[item,...items];else commitItems([item,...items]);renderAll();$('#publishDialog').close();clearPhotos();location.hash='#mine';notify('发布成功，已保存到我的发布');
+      commitItems([item,...items]);renderAll();$('#publishDialog').close();clearPhotos();location.hash='#mine';notify('发布成功，已保存到我的发布');
     } catch(error) {
       if(error.fields) Object.entries(error.fields).forEach(([name,message])=>{const el=$(`[data-error="${name}"]`);if(el)el.textContent=message;});
       const first=Object.keys(error.fields||{})[0];
@@ -206,71 +204,15 @@
       notify(error.message||'发布失败，请重试');
     } finally {mutationBusy=false;form.querySelector('[type="submit"]').disabled=photoBusy;}
   }
-  async function connectShared(url) {
-    if (mutationBusy || commentBusy) { notify('请等待当前提交完成'); return; }
-    saveCommentDraft(); $('#detailDialog').close();
-    $('#connectionError').textContent='';
-    const button=$('#connectionForm [type="submit"]');button.disabled=true;
-    sharedReady=false;
-    try {
-      storage.setItem('campus-light-api-url',url);
-      if (!url) {
-        shared=null;ownerId=localOwnerId;items=M.readItems(storage,seed);
-        $('#connectionStatus').textContent='本地模式 · 启事仅保存在当前浏览器，公共评论未连接';
-      } else {
-        shared=new window.SharedClient(url,storage);items=[];renderAll();
-        $('#connectionStatus').textContent='正在连接共享服务…';
-        const loaded=await shared.connect();
-        ownerId=shared.ownerId;items=loaded;sharedReady=true;
-        $('#connectionStatus').textContent='共享模式 · 启事与评论已连接（每 15 秒刷新）';
-      }
-    } catch(error) {
-      $('#connectionError').textContent=error.message;
-      $('#connectionStatus').textContent='共享服务未连接 · 请重试或留空地址返回本地模式';
-    } finally {
-      $('#refreshShared').hidden=!sharedReady;
-      $('#importLocal').hidden=!sharedReady;
-      button.disabled=false;renderAll();route();
-    }
-  }
-  let refreshBusy=false;
-  async function refreshShared() {
-    if(!sharedReady||refreshBusy||mutationBusy)return;
-    refreshBusy=true;
-    try {
-      items=await shared.request('/items');renderAll();
-      $('#connectionStatus').textContent='共享模式 · 启事与评论已连接（每 15 秒刷新）';
-      if(selectedId&&!items.some(item=>item.id===selectedId)){
-        $('#commentState').textContent='该启事已被删除，无法继续提交评论';
-        $('#commentForm [type="submit"]').disabled=true;
-      } else if(selectedId) {
-        const current=items.find(item=>item.id===selectedId);
-        $('#commentItemStatus').textContent='当前启事：'+M.statusText(current);
-      }
-    } catch(error) {$('#connectionStatus').textContent='共享数据刷新失败 · 显示上次加载的启事';$('#connectionError').textContent=error.message;}
-    finally {refreshBusy=false;}
-  }
-  async function importLocal() {
-    if(!sharedReady||mutationBusy)return;
-    const old=M.readItems(storage,seed).filter(item=>item.ownerId===localOwnerId&&item.ownerId!=='demo');
-    if(!old.length){notify('没有需要复制的本地启事');return;}
-    mutationBusy=true;$('#importLocal').disabled=true;
-    let count=0;
-    try {
-      for(const item of old){await shared.request('/items','POST',{...item,legacyKey:item.id});count++;}
-      notify(`已复制 ${count} 条旧启事，本地原件仍保留`);
-    } catch(error){$('#connectionError').textContent=`已复制 ${count} 条。${error.message}；再次复制不会重复添加已成功的启事。`;}
-    finally{mutationBusy=false;$('#importLocal').disabled=false;refreshShared();}
-  }
   function commentPanel(item) {
-    return `<section class="comments-section" aria-labelledby="commentsTitle"><div class="comments-heading"><div><span class="section-kicker">A LITTLE CLUE HELPS</span><h3 id="commentsTitle">评论与线索</h3></div>${sharedReady?'<button type="button" class="text-button" data-share>复制启事链接</button>':''}</div>
+    return `<section class="comments-section" aria-labelledby="commentsTitle"><div class="comments-heading"><div><span class="section-kicker">A LITTLE CLUE HELPS</span><h3 id="commentsTitle">评论与线索</h3></div><span class="local-comment-label">保存在当前浏览器</span></div>
       <p id="commentItemStatus" class="comment-item-status">当前启事：${M.statusText(item)}</p>
       <p class="comment-privacy">请通过物品特征核实线索；不要公开完整证件号码、住址等个人信息。</p>
-      <div class="comment-list-toolbar"><span>按发表时间从早到晚排列</span><button type="button" class="text-button" data-refresh-comments ${sharedReady?'':'disabled'}>刷新评论</button></div>
+      <div class="comment-list-toolbar"><span>按发表时间从早到晚 · 当前设备时区</span><button type="button" class="text-button" data-refresh-comments >刷新评论</button></div>
       <p id="commentState" role="status" aria-live="polite"></p><div id="commentList" class="comment-list"></div>
       <form id="commentForm" novalidate><label class="field">你的昵称<input id="commentNickname" name="nickname" maxlength="24" placeholder="2～24 个字符" aria-describedby="nicknameError"><small id="nicknameError" class="inline-error"></small></label>
       <label class="field">留下线索<textarea id="commentBody" name="body" rows="3" maxlength="500" placeholder="例如：我在图书馆服务台看到过相似物品" aria-describedby="bodyError"></textarea><small id="bodyError" class="inline-error"></small></label>
-      <p id="commentError" class="inline-error" role="alert"></p><div class="comment-submit-row"><span>最多 500 个字符 · 请文明留言</span><button type="submit" class="button button-primary" ${sharedReady?'':'disabled'}>发表评论</button></div></form></section>`;
+      <p id="commentError" class="inline-error" role="alert"></p><div class="comment-submit-row"><span>最多 500 个字符 · 请文明留言</span><button type="submit" class="button button-primary" ${commentBusy?'disabled':''}>发表评论</button></div></form><button type="button" class="text-button comments-close" data-close="detailDialog">关闭详情</button></section>`;
   }
   function saveCommentDraft() {
     if(selectedId&&$('#commentBody')){
@@ -295,39 +237,39 @@
       heading.append(name,time);article.append(heading,text);list.append(article);
     }
   }
-  async function loadComments(id) {
+  function loadComments(id) {
     if(!id)return;
-    const version=++commentLoadVersion;
-    if(!sharedReady){$('#commentState').textContent='公共评论需要连接共享服务。请在页面顶部设置服务地址。';return;}
-    $('#commentState').textContent='正在加载线索…';
-    try {
-      const comments=await shared.request('/items/'+encodeURIComponent(id)+'/comments');
-      if(id===selectedId&&version===commentLoadVersion){renderComments(comments);}
-    } catch(error){if(id===selectedId&&version===commentLoadVersion)$('#commentState').textContent=error.message+'；可点击“刷新评论”重试';}
+    $('#commentState').textContent='正在读取评论…';
+    try {renderComments(M.readComments(storage,id));}
+    catch(error){$('#commentState').textContent=error.message;}
   }
   async function submitComment(event) {
     event.preventDefault();
-    if(commentBusy||!sharedReady||!selectedId)return;
+    if(commentBusy||!selectedId)return;
     const id=selectedId, form=event.target;
-    const draft={nickname:form.nickname.value.trim(),body:form.body.value.trim()};
+    const draft={nickname:form.elements.nickname.value.trim(),body:form.elements.body.value.trim()};
     const errors=M.validateComment(draft);
     $('#nicknameError').textContent=errors.nickname||'';$('#bodyError').textContent=errors.body||'';$('#commentError').textContent='';
     if(Object.keys(errors).length){form.elements.namedItem(Object.keys(errors)[0]).focus();return;}
     saveCommentDraft();
-    const previous=commentDrafts.get(id)||{};
-    const signature=JSON.stringify(draft);
-    const requestId=previous.signature===signature?previous.requestId:crypto.randomUUID();
-    commentDrafts.set(id,{...previous,signature,requestId});
     commentBusy=true;
-    const button=form.querySelector('[type="submit"]');button.disabled=true;button.textContent='正在发表…';form.setAttribute('aria-busy','true');
+    const button=form.querySelector('[type="submit"]');button.disabled=true;button.textContent='正在保存…';form.setAttribute('aria-busy','true');
+    form.elements.nickname.readOnly=true;form.elements.body.readOnly=true;
     try {
-      await shared.request('/items/'+encodeURIComponent(id)+'/comments','POST',{...draft,requestId});
+      // Yield once so the disabled state is visible and repeated submissions are ignored.
+      await new Promise(resolve=>requestAnimationFrame(resolve));
+      if(!items.some(item=>item.id===id))throw new Error('启事已不存在，无法保存评论');
+      M.addComment(storage,id,draft);
       commentDrafts.set(id,{nickname:draft.nickname,body:''});
-      if(selectedId===id&&$('#detailDialog').open){form.body.value='';await loadComments(id);notify('线索发表成功');}
+      if(selectedId===id&&$('#detailDialog').open){$('#commentBody').value='';loadComments(id);notify('评论已保存到当前浏览器');}
     } catch(error){if(selectedId===id){$('#commentError').textContent=error.message;}}
-    finally{commentBusy=false;button.disabled=false;button.textContent='发表评论';form.setAttribute('aria-busy','false');}
+    finally{
+      commentBusy=false;button.disabled=false;button.textContent='发表评论';form.setAttribute('aria-busy','false');
+      form.elements.nickname.readOnly=false;form.elements.body.readOnly=false;
+      if($('#commentForm'))$('#commentForm [type="submit"]').disabled=false;
+    }
   }
-  document.addEventListener('click',async event=>{
+  document.addEventListener('click',event=>{
     const remove=event.target.closest('[data-remove-photo]');
     if(remove&&!photoBusy){photos=photos.filter((_,index)=>index!==Number(remove.dataset.removePhoto));photoError='';renderPhotoPreviews();return;}
     const view=event.target.closest('[data-view-photo]');
@@ -347,12 +289,9 @@
     const statusButton=event.target.closest('[data-status]');
     if(statusButton){
       if(mutationBusy)return;mutationBusy=true;statusButton.disabled=true;
-      try{if(shared){const updated=await shared.request('/items/'+encodeURIComponent(statusButton.dataset.id),'PATCH',{status:statusButton.dataset.status});items=items.map(item=>item.id===updated.id?updated:item);}else commitItems(M.updateStatus(items,statusButton.dataset.id,ownerId,statusButton.dataset.status));renderAll();$('#detailDialog').close();notify('启事状态已更新');}catch(error){notify(error.message);}finally{mutationBusy=false;statusButton.disabled=false;}
+      try{commitItems(M.updateStatus(items,statusButton.dataset.id,ownerId,statusButton.dataset.status));renderAll();$('#detailDialog').close();notify('启事状态已更新');}catch(error){notify(error.message);}finally{mutationBusy=false;statusButton.disabled=false;}
     }
     if(event.target.closest('[data-refresh-comments]'))loadComments(selectedId);
-    if(event.target.closest('[data-share]')){
-      try {await navigator.clipboard.writeText(shared.url+'/#post/'+encodeURIComponent(selectedId));notify('启事链接已复制');} catch(_){notify('请复制地址栏中的启事链接');}
-    }
   });
   $$('.modal').forEach(dialog=>dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();}));
   $('#deleteDialog').addEventListener('close',()=>{pendingDeleteId=null;});
@@ -369,13 +308,6 @@
   window.addEventListener('hashchange',route);
   document.addEventListener('keydown',event=>{if(event.key==='/'&&!$$('dialog[open]').length&&!['INPUT','TEXTAREA'].includes(document.activeElement.tagName)){event.preventDefault();$('#searchInput').focus();}});
   categoryOptions();renderAll();route();
-  $('#connectionForm').addEventListener('submit',event=>{event.preventDefault();connectShared($('#apiUrl').value.trim());});
-  $('#refreshShared').addEventListener('click',refreshShared);
-  $('#importLocal').addEventListener('click',importLocal);
-  $('#detailDialog').addEventListener('close',()=>{saveCommentDraft();selectedId=null;commentLoadVersion++;});
+  $('#detailDialog').addEventListener('close',()=>{saveCommentDraft();selectedId=null;});
   document.addEventListener('submit',event=>{if(event.target.id==='commentForm')submitComment(event);});
-  setInterval(()=>{if(sharedReady&&!document.hidden){refreshShared();if(selectedId&&!commentBusy)loadComments(selectedId);}},15000);
-  const configured=storage.getItem('campus-light-api-url') ?? (window.CampusConfig.apiUrl || (location.protocol.startsWith('http')?location.origin:''));
-  $('#apiUrl').value=configured;
-  if(configured)connectShared(configured);
 })();

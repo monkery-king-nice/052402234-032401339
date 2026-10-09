@@ -2,14 +2,13 @@
   "name": "campus-light",
   "version": "1.1.0",
   "private": true,
-  "description": "校园拾光失物招领与公共线索",
+  "description": "校园拾光纯前端失物招领与本地评论",
   "scripts": {
-    "start": "node server/server.js",
     "test": "node --test tests/*.test.js",
     "test:browser": "node tests/browser.cjs"
   },
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=20"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0"
