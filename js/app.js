@@ -18,11 +18,49 @@
   let filters = { query:'', type:'all', category:'all', status:'all' };
   let selectedId = null;
   let toastTimer;
+  let photos = [];
+  let photoBusy = false;
+  let photoError = '';
+  let photoVersion = 0;
 
   function esc(value) { return String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])); }
   function dateText(value) { return value ? value.replaceAll('-', '.') : ''; }
   function notify(message) { const el=$('#toast');el.textContent=message;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2800); }
-  function persist() { M.saveItems(storage, items); }
+  function commitItems(next) { M.saveItems(storage, next); items = next; }
+  function itemPhotos(item) { return Array.isArray(item.images) ? item.images.filter(M.isImageDataUrl).slice(0, M.MAX_IMAGES) : []; }
+  function renderPhotoPreviews() {
+    $('#photoPreviews').innerHTML = photos.map((src, index) => `<div class="photo-preview"><img src="${esc(src)}" alt="待发布照片 ${index + 1}"><button type="button" data-remove-photo="${index}" aria-label="移除第 ${index + 1} 张照片" ${photoBusy ? 'disabled' : ''}>×</button></div>`).join('');
+    $('#clearPhotos').hidden = !photos.length && !photoError && !photoBusy;
+    $('#photoProgress').textContent = photoBusy ? '正在压缩照片，请稍候…' : photos.length ? `已选 ${photos.length} / ${M.MAX_IMAGES} 张照片` : '';
+    $('#photoError').textContent = photoError;
+    $('#publishForm [type="submit"]').disabled = photoBusy;
+    $('#publishForm [type="submit"]').setAttribute('aria-busy', String(photoBusy));
+  }
+  function clearPhotos() {
+    photoVersion++;
+    photos = [];
+    photoBusy = false;
+    photoError = '';
+    $('#imageInput').value = '';
+    renderPhotoPreviews();
+  }
+  async function selectPhotos(event) {
+    const files = Array.from(event.target.files);
+    event.target.value = '';
+    if (!files.length) return;
+    const version = ++photoVersion;
+    photoBusy = true;
+    photoError = '';
+    renderPhotoPreviews();
+    try {
+      const prepared = await window.CampusImages.prepareFiles(files, photos.length);
+      if (version === photoVersion) photos = [...photos, ...prepared];
+    } catch (error) {
+      if (version === photoVersion) photoError = error.message + '。请重新选择，或清除照片后发布。';
+    } finally {
+      if (version === photoVersion) { photoBusy = false; renderPhotoPreviews(); }
+    }
+  }
   function categoryOptions() {
     $('#categoryFilter').insertAdjacentHTML('beforeend', M.CATEGORIES.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join(''));
     $('[name="category"]').insertAdjacentHTML('beforeend', M.CATEGORIES.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join(''));
@@ -30,8 +68,9 @@
 
   function card(item) {
     const mine = item.ownerId === ownerId;
+    const images = itemPhotos(item);
     return `<article class="item-card" data-type="${item.type}">
-      <div class="card-visual"><span class="card-emoji" aria-hidden="true">${emoji[item.category] || '📦'}</span><span class="type-pill">${item.type==='lost'?'寻物启事':'招领启事'}</span><span class="status-pill ${item.status==='resolved'?'resolved':''}">${M.statusText(item)}</span></div>
+      <div class="card-visual">${images.length ? `<img class="card-photo" src="${esc(images[0])}" alt="${esc(item.title)}的照片" loading="lazy"><span class="photo-count">${images.length} 张照片</span>` : `<span class="card-emoji" aria-hidden="true">${emoji[item.category] || '📦'}</span>`}<span class="type-pill">${item.type==='lost'?'寻物启事':'招领启事'}</span><span class="status-pill ${item.status==='resolved'?'resolved':''}">${M.statusText(item)}</span></div>
       <div class="card-body"><span class="card-category">${esc(item.category)}</span><h3>${esc(item.title)}</h3><p class="card-desc">${esc(item.description)}</p><div class="card-meta"><span>⌖ ${esc(item.location)}</span><span>${dateText(item.date)}</span></div><div class="card-footer"><small>${mine?'我发布的':esc(item.publisher)}</small><button type="button" data-detail="${esc(item.id)}" aria-label="查看${esc(item.title)}详情">查看详情 →</button></div></div>
     </article>`;
   }
@@ -58,6 +97,7 @@
   }
   function openPublish(type='lost') {
     $('#publishForm').reset();
+    clearPhotos();
     $$('[data-error]').forEach(el=>el.textContent='');
     $(`[name="type"][value="${type}"]`).checked=true;
     const today=new Date();
@@ -68,7 +108,9 @@
   function detail(item) {
     const mine=item.ownerId===ownerId;
     const resolved=item.status==='resolved';
-    $('#detailContent').innerHTML=`<div class="detail-cover ${item.type==='found'?'found':''}"><span aria-hidden="true">${emoji[item.category]||'📦'}</span><button type="button" class="icon-button" data-close="detailDialog" aria-label="关闭">×</button></div>
+    const images=itemPhotos(item);
+    $('#detailContent').innerHTML=`<div class="detail-cover ${item.type==='found'?'found':''} ${images.length?'has-photo':''}">${images.length?`<img id="detailPhoto" class="detail-photo" src="${esc(images[0])}" alt="${esc(item.title)}的照片 1">`:`<span aria-hidden="true">${emoji[item.category]||'📦'}</span>`}<button type="button" class="icon-button" data-close="detailDialog" aria-label="关闭">×</button></div>
+      ${images.length>1?`<div class="detail-photo-strip" aria-label="物品照片">${images.map((src,index)=>`<button type="button" class="${index===0?'selected':''}" data-view-photo="${index}" aria-label="查看第 ${index+1} 张照片" aria-pressed="${index===0}"><img src="${esc(src)}" alt="${esc(item.title)}的照片 ${index+1}"></button>`).join('')}</div>`:''}
       <div class="detail-body"><div class="detail-labels"><span>${item.type==='lost'?'寻物启事':'招领启事'}</span><span class="${resolved?'resolved':''}">${M.statusText(item)}</span></div><h2 id="detailTitle">${esc(item.title)}</h2>
       <div class="detail-facts"><div><small>物品类别</small><strong>${esc(item.category)}</strong></div><div><small>丢失 / 拾取日期</small><strong>${dateText(item.date)}</strong></div><div><small>丢失 / 拾取地点</small><strong>${esc(item.location)}</strong></div><div><small>发布者</small><strong>${esc(item.publisher)}${mine?'（我）':''}</strong></div></div>
       <h3>线索描述</h3><p class="detail-description">${esc(item.description)}</p>
@@ -87,18 +129,26 @@
     event.preventDefault();
     const form=event.currentTarget;
     const draft=Object.fromEntries(new FormData(form));
+    if (photoBusy) { notify('照片正在处理，请稍候再发布'); return; }
+    if (photoError) { $('#photoError').textContent = photoError; $('#imageInput').focus(); notify('请重新选择照片，或先清除照片'); return; }
+    draft.images=photos.slice();
     $$('[data-error]').forEach(el=>el.textContent='');
     try {
       const item=M.createItem(draft,ownerId);
-      items=[item,...items];persist();renderAll();$('#publishDialog').close();location.hash='#mine';notify('发布成功，已保存到我的发布');
+      commitItems([item,...items]);renderAll();$('#publishDialog').close();clearPhotos();location.hash='#mine';notify('发布成功，已保存到我的发布');
     } catch(error) {
       if(error.fields) Object.entries(error.fields).forEach(([name,message])=>{const el=$(`[data-error="${name}"]`);if(el)el.textContent=message;});
       const first=Object.keys(error.fields||{})[0];
-      if(first) form.elements.namedItem(first)?.focus();
+      if(first==='images') $('#imageInput').focus();
+      else if(first) form.elements.namedItem(first)?.focus();
       notify(error.message||'发布失败，请重试');
     }
   }
   document.addEventListener('click',event=>{
+    const remove=event.target.closest('[data-remove-photo]');
+    if(remove&&!photoBusy){photos=photos.filter((_,index)=>index!==Number(remove.dataset.removePhoto));photoError='';renderPhotoPreviews();return;}
+    const view=event.target.closest('[data-view-photo]');
+    if(view){const item=items.find(x=>x.id===selectedId);const index=Number(view.dataset.viewPhoto);const src=item&&itemPhotos(item)[index];if(src){$('#detailPhoto').src=src;$('#detailPhoto').alt=`${item.title}的照片 ${index+1}`;$$('[data-view-photo]').forEach(button=>{const active=button===view;button.classList.toggle('selected',active);button.setAttribute('aria-pressed',String(active));});}return;}
     const action=event.target.closest('[data-action]')?.dataset.action;
     if(action?.startsWith('publish')){openPublish(action==='publish-found'?'found':'lost');return;}
     const close=event.target.closest('[data-close]')?.dataset.close;
@@ -108,10 +158,12 @@
     const copy=event.target.closest('[data-copy]')?.dataset.copy;
     if(copy){copyContact(copy);return;}
     const statusButton=event.target.closest('[data-status]');
-    if(statusButton){try{items=M.updateStatus(items,statusButton.dataset.id,ownerId,statusButton.dataset.status);persist();renderAll();$('#detailDialog').close();notify(statusButton.dataset.status==='resolved'?'状态已更新，感谢你完成这次寻回':'已恢复为进行中');}catch(error){notify(error.message);}}
+    if(statusButton){try{commitItems(M.updateStatus(items,statusButton.dataset.id,ownerId,statusButton.dataset.status));renderAll();$('#detailDialog').close();notify(statusButton.dataset.status==='resolved'?'状态已更新，感谢你完成这次寻回':'已恢复为进行中');}catch(error){notify(error.message);}}
   });
   $$('.modal').forEach(dialog=>dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();}));
   $('#publishForm').addEventListener('submit',submit);
+  $('#imageInput').addEventListener('change',selectPhotos);
+  $('#clearPhotos').addEventListener('click',clearPhotos);
   $('#searchInput').addEventListener('input',event=>{filters.query=event.target.value;renderHome();});
   $('#categoryFilter').addEventListener('change',event=>{filters.category=event.target.value;renderHome();});
   $('#statusFilter').addEventListener('change',event=>{filters.status=event.target.value;renderHome();});

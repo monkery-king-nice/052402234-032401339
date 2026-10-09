@@ -9,6 +9,29 @@
   const OWNER_KEY = 'campus-light-owner-v1';
   const CATEGORIES = ['证件卡片', '数码设备', '钥匙配饰', '书籍文具', '衣物用品', '其他物品'];
   const TYPES = ['lost', 'found'];
+  const MAX_IMAGES = 3;
+  const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+  const MAX_IMAGE_BYTES = 200 * 1024;
+  const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+  function isImageDataUrl(value) {
+    if (typeof value !== 'string' || value.length > Math.ceil(MAX_IMAGE_BYTES / 3) * 4 + 32) return false;
+    const match = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
+    if (!match || match[2].length % 4 !== 0) return false;
+    const data = match[2];
+    const bytes = data.length / 4 * 3 - (data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0);
+    return bytes > 0 && bytes <= MAX_IMAGE_BYTES;
+  }
+
+  function validateImageFiles(files, existingCount = 0) {
+    if (files.length + existingCount > MAX_IMAGES) return '每条信息最多上传 3 张照片';
+    for (const file of files) {
+      if (!IMAGE_TYPES.includes(file.type)) return '仅支持 JPG、PNG 和 WebP 图片';
+      if (!file.size) return '不能上传空文件，请重新选择照片';
+      if (file.size > MAX_UPLOAD_BYTES) return '每张照片不能超过 5 MB，请缩小后重试';
+    }
+    return '';
+  }
 
   function clean(value) { return String(value ?? '').trim(); }
   function statusText(item) {
@@ -28,6 +51,7 @@
     if (clean(draft.description).length < 10 || clean(draft.description).length > 500) errors.description = '详细描述需为 10–500 个字符';
     if (clean(draft.contact).length < 5 || clean(draft.contact).length > 80) errors.contact = '联系方式需为 5–80 个字符';
     if (clean(draft.publisher).length < 2 || clean(draft.publisher).length > 24) errors.publisher = '称呼需为 2–24 个字符';
+    if (draft.images !== undefined && (!Array.isArray(draft.images) || draft.images.length > MAX_IMAGES || !draft.images.every(isImageDataUrl))) errors.images = '照片无效或数量过多，请重新选择照片';
     return errors;
   }
 
@@ -50,6 +74,7 @@
       description: clean(draft.description),
       contact: clean(draft.contact),
       publisher: clean(draft.publisher),
+      images: (draft.images || []).slice(),
       status: 'active',
       createdAt: now.toISOString()
     };
@@ -80,11 +105,20 @@
       const raw = storage.getItem(STORAGE_KEY);
       if (raw === null) return seed.slice();
       const value = JSON.parse(raw);
-      return Array.isArray(value) ? value.filter(item => item && TYPES.includes(item.type) && clean(item.id)) : seed.slice();
+      return Array.isArray(value) ? value.filter(item => item && TYPES.includes(item.type) && clean(item.id)).map(item => ({ ...item, images: Array.isArray(item.images) ? item.images.filter(isImageDataUrl).slice(0, MAX_IMAGES) : [] })) : seed.slice();
     } catch (_) { return seed.slice(); }
   }
 
-  function saveItems(storage, items) { storage.setItem(STORAGE_KEY, JSON.stringify(items)); }
+  function saveItems(storage, items) {
+    try { storage.setItem(STORAGE_KEY, JSON.stringify(items)); }
+    catch (cause) {
+      const error = new Error(cause.name === 'QuotaExceededError' || cause.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+        ? '浏览器存储空间不足，请减少照片数量后重试；原有信息仍保留'
+        : '无法保存信息，请检查浏览器是否允许本地存储');
+      error.cause = cause;
+      throw error;
+    }
+  }
   function getOwnerId(storage) {
     let id = storage.getItem(OWNER_KEY);
     if (!id) {
@@ -94,5 +128,5 @@
     return id;
   }
 
-  return { STORAGE_KEY, OWNER_KEY, CATEGORIES, clean, statusText, validateDraft, createItem, filterItems, updateStatus, readItems, saveItems, getOwnerId };
+  return { STORAGE_KEY, OWNER_KEY, CATEGORIES, MAX_IMAGES, MAX_UPLOAD_BYTES, MAX_IMAGE_BYTES, IMAGE_TYPES, isImageDataUrl, validateImageFiles, clean, statusText, validateDraft, createItem, filterItems, updateStatus, readItems, saveItems, getOwnerId };
 });
