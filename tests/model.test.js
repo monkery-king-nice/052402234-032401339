@@ -58,6 +58,29 @@ test('不存在的信息或非法状态不能更新', () => {
   assert.throws(() => M.updateStatus([make()], 'missing', 'owner-a', 'resolved'), /不存在/);
   assert.throws(() => M.updateStatus([make()], 'id-1', 'owner-a', 'deleted'), /无效状态/);
 });
+
+test('发布者仅删除指定信息，其他信息及照片保留且原数组不变', () => {
+  const target = make();
+  const other = { ...make(), id: 'id-2', ownerId: 'owner-b', images: ['existing-photo'] };
+  const source = [target, other];
+  assert.deepEqual(M.removeItem(source, 'id-1', 'owner-a'), [other]);
+  assert.deepEqual(source, [target, other]);
+});
+test('已完成的招领信息也可由发布者删除', () => {
+  const item = { ...make({ type: 'found' }), status: 'resolved' };
+  assert.deepEqual(M.removeItem([item], 'id-1', 'owner-a'), []);
+});
+test('拒绝非发布者、空发布者以及删除演示信息', () => {
+  assert.throws(() => M.removeItem([make()], 'id-1', 'owner-b'), /只能删除自己/);
+  assert.throws(() => M.removeItem([{ ...make(), ownerId: '' }], 'id-1', ''), /只能删除自己/);
+  assert.throws(() => M.removeItem([{ ...make(), ownerId: 'demo' }], 'id-1', 'demo'), /只能删除自己/);
+});
+test('不存在的信息不能删除', () => assert.throws(() => M.removeItem([make()], 'missing', 'owner-a'), /不存在/));
+test('删除最后一条信息后刷新仍为空，不恢复成演示数据', () => {
+  const storage = memory();
+  M.saveItems(storage, M.removeItem([make()], 'id-1', 'owner-a'));
+  assert.deepEqual(M.readItems(storage, [make()]), []);
+});
 test('信息写入后可从本地存储读取', () => {
   const storage = memory(); M.saveItems(storage, [make()]);
   assert.equal(M.readItems(storage, []).length, 1);

@@ -100,6 +100,13 @@
     return items.map(entry => entry.id === id ? { ...entry, status } : entry);
   }
 
+  function removeItem(items, id, ownerId) {
+    const item = items.find(entry => entry.id === id);
+    if (!item) throw new Error('信息不存在');
+    if (!clean(ownerId) || item.ownerId !== ownerId || item.ownerId === 'demo') throw new Error('只能删除自己发布的信息');
+    return items.filter(entry => entry.id !== id);
+  }
+
   function readItems(storage, seed) {
     try {
       const raw = storage.getItem(STORAGE_KEY);
@@ -128,5 +135,5 @@
     return id;
   }
 
-  return { STORAGE_KEY, OWNER_KEY, CATEGORIES, MAX_IMAGES, MAX_UPLOAD_BYTES, MAX_IMAGE_BYTES, IMAGE_TYPES, isImageDataUrl, validateImageFiles, clean, statusText, validateDraft, createItem, filterItems, updateStatus, readItems, saveItems, getOwnerId };
+  return { STORAGE_KEY, OWNER_KEY, CATEGORIES, MAX_IMAGES, MAX_UPLOAD_BYTES, MAX_IMAGE_BYTES, IMAGE_TYPES, isImageDataUrl, validateImageFiles, clean, statusText, validateDraft, createItem, filterItems, updateStatus, removeItem, readItems, saveItems, getOwnerId };
 });

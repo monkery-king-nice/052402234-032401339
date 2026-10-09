@@ -25,6 +25,7 @@
   let items = M.readItems(storage, seed);
   let filters = { query:'', type:'all', category:'all', status:'all' };
   let selectedId = null;
+  let pendingDeleteId = null;
   let toastTimer;
   let photos = [];
   let photoBusy = false;
@@ -139,9 +140,28 @@
       <h3>线索描述</h3><p class="detail-description">${esc(item.description)}</p>
       <div class="contact-box"><div><small>发布者提供的联系方式</small><strong>${esc(item.contact)}</strong></div><button type="button" data-copy="${esc(item.id)}">复制联系方式</button></div>
       <p class="detail-note">请先核实物品特征，再约定安全的交接方式。${resolved?'该信息已完成，请避免重复联系。':''}</p>
-      ${mine?`<div class="detail-actions"><button type="button" class="button ${resolved?'button-ghost':'button-primary'}" data-status="${resolved?'active':'resolved'}" data-id="${esc(item.id)}">${resolved?'恢复为进行中':item.type==='lost'?'✓ 标记为已找到':'✓ 标记为已归还'}</button></div>`:''}</div>`;
+      ${mine?`<div class="detail-actions"><button type="button" class="button ${resolved?'button-ghost':'button-primary'}" data-status="${resolved?'active':'resolved'}" data-id="${esc(item.id)}">${resolved?'恢复为进行中':item.type==='lost'?'✓ 标记为已找到':'✓ 标记为已归还'}</button><button type="button" class="button button-danger-outline" data-delete="${esc(item.id)}">删除发布</button></div>`:''}</div>`;
     selectedId=item.id;
     $('#detailDialog').showModal();
+  }
+  function openDelete(id) {
+    const item = items.find(entry => entry.id === id);
+    if (!item || item.ownerId !== ownerId || item.ownerId === 'demo') { notify('只能删除自己发布的信息'); return; }
+    pendingDeleteId = id;
+    $('#deleteItemTitle').textContent = item.title;
+    $('#deleteError').textContent = '';
+    $('#deleteDialog').showModal();
+  }
+  function confirmDelete() {
+    if (!pendingDeleteId) return;
+    try {
+      const id = pendingDeleteId;
+      commitItems(M.removeItem(items, id, ownerId));
+      $('#deleteDialog').close();
+      if (selectedId === id) { $('#detailDialog').close(); selectedId = null; }
+      renderAll();
+      notify('发布已删除');
+    } catch (error) { $('#deleteError').textContent = error.message || '删除失败，请重试'; }
   }
   function copyContact(id) {
     const item=items.find(x=>x.id===id);if(!item)return;
@@ -174,16 +194,20 @@
     if(view){const item=items.find(x=>x.id===selectedId);const index=Number(view.dataset.viewPhoto);const src=item&&itemPhotos(item)[index];if(src){$('#detailPhoto').src=src;$('#detailPhoto').alt=`${item.title}的照片 ${index+1}`;$$('[data-view-photo]').forEach(button=>{const active=button===view;button.classList.toggle('selected',active);button.setAttribute('aria-pressed',String(active));});}return;}
     const action=event.target.closest('[data-action]')?.dataset.action;
     if(action?.startsWith('publish')){openPublish(action==='publish-found'?'found':'lost');return;}
+    if(action==='confirm-delete'){confirmDelete();return;}
     const close=event.target.closest('[data-close]')?.dataset.close;
     if(close){document.getElementById(close)?.close();return;}
     const id=event.target.closest('[data-detail]')?.dataset.detail;
     if(id){const item=items.find(x=>x.id===id);if(item)detail(item);return;}
+    const deleteId=event.target.closest('[data-delete]')?.dataset.delete;
+    if(deleteId){openDelete(deleteId);return;}
     const copy=event.target.closest('[data-copy]')?.dataset.copy;
     if(copy){copyContact(copy);return;}
     const statusButton=event.target.closest('[data-status]');
     if(statusButton){try{commitItems(M.updateStatus(items,statusButton.dataset.id,ownerId,statusButton.dataset.status));renderAll();$('#detailDialog').close();notify(statusButton.dataset.status==='resolved'?'状态已更新，感谢你完成这次寻回':'已恢复为进行中');}catch(error){notify(error.message);}}
   });
   $$('.modal').forEach(dialog=>dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();}));
+  $('#deleteDialog').addEventListener('close',()=>{pendingDeleteId=null;});
   $('#publishForm').addEventListener('submit',submit);
   $('#imageInput').addEventListener('change',selectPhotos);
   $('#clearPhotos').addEventListener('click',clearPhotos);
