@@ -4,6 +4,14 @@
   const $ = selector => document.querySelector(selector);
   const $$ = selector => [...document.querySelectorAll(selector)];
   const emoji = { '证件卡片': '🪪', '数码设备': '🎧', '钥匙配饰': '🔑', '书籍文具': '📚', '衣物用品': '🎒', '其他物品': '📦' };
+  const demoPhotos = {
+    'demo-1': { title: '蓝色校园卡', src: 'assets/items/campus-card.jpg' },
+    'demo-2': { title: '白色无线耳机', src: 'assets/items/wireless-earbuds.jpg' },
+    'demo-3': { title: '一串钥匙', src: 'assets/items/keys.jpg' },
+    'demo-4': { title: '高等数学笔记本', src: 'assets/items/math-notebook.jpg' },
+    'demo-5': { title: '米色帆布包', src: 'assets/items/canvas-bag.jpg' },
+    'demo-6': { title: '黑色保温杯', src: 'assets/items/thermos.jpg' }
+  };
   const seed = [
     { id:'demo-1',ownerId:'demo',type:'lost',title:'蓝色校园卡',category:'证件卡片',location:'图书馆二楼自习区',date:'2026-09-28',description:'蓝色卡套，背面有一张小兔贴纸。可能落在靠窗的自习桌附近。如有线索请联系我，谢谢！',contact:'演示微信：campus_demo_01',publisher:'小林同学',status:'active',createdAt:'2026-09-29T09:12:00.000Z' },
     { id:'demo-2',ownerId:'demo',type:'found',title:'白色无线耳机',category:'数码设备',location:'教学楼 A 座一楼',date:'2026-09-29',description:'在一楼饮水机附近捡到白色耳机盒，盒身有轻微划痕。请失主说出耳机品牌及盒内特征后认领。',contact:'演示邮箱：demo02@example.com',publisher:'阿舟同学',status:'active',createdAt:'2026-09-29T06:30:00.000Z' },
@@ -27,7 +35,20 @@
   function dateText(value) { return value ? value.replaceAll('-', '.') : ''; }
   function notify(message) { const el=$('#toast');el.textContent=message;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2800); }
   function commitItems(next) { M.saveItems(storage, next); items = next; }
-  function itemPhotos(item) { return Array.isArray(item.images) ? item.images.filter(M.isImageDataUrl).slice(0, M.MAX_IMAGES) : []; }
+  function itemDemoPhoto(item) {
+    const photo = demoPhotos[item.id];
+    return item.ownerId === 'demo' && photo && photo.title === item.title ? photo.src : '';
+  }
+  function itemPhotos(item) {
+    const uploaded = Array.isArray(item.images) ? item.images.filter(M.isImageDataUrl).slice(0, M.MAX_IMAGES) : [];
+    if (uploaded.length) return uploaded;
+    const demoPhoto = itemDemoPhoto(item);
+    return demoPhoto ? [demoPhoto] : [];
+  }
+  function itemEmoji(item) {
+    const names = [[/手机|iphone|phone/i,'📱'],[/电脑|笔记本电脑|laptop|macbook/i,'💻'],[/耳机|headphone|earbuds/i,'🎧'],[/钥匙/,'🔑'],[/校园卡|学生卡|证件/,'🪪'],[/笔记本|书籍|课本/,'📓'],[/帆布包|手提包/,'👜'],[/保温杯|水杯|水壶/,'🥤'],[/雨伞/,'☂️'],[/钱包/,'👛']];
+    return names.find(([pattern])=>pattern.test(item.title))?.[1] || emoji[item.category] || '📦';
+  }
   function renderPhotoPreviews() {
     $('#photoPreviews').innerHTML = photos.map((src, index) => `<div class="photo-preview"><img src="${esc(src)}" alt="待发布照片 ${index + 1}"><button type="button" data-remove-photo="${index}" aria-label="移除第 ${index + 1} 张照片" ${photoBusy ? 'disabled' : ''}>×</button></div>`).join('');
     $('#clearPhotos').hidden = !photos.length && !photoError && !photoBusy;
@@ -69,8 +90,9 @@
   function card(item) {
     const mine = item.ownerId === ownerId;
     const images = itemPhotos(item);
+    const demoPhoto = images.length && images[0] === itemDemoPhoto(item);
     return `<article class="item-card" data-type="${item.type}">
-      <div class="card-visual">${images.length ? `<img class="card-photo" src="${esc(images[0])}" alt="${esc(item.title)}的照片" loading="lazy"><span class="photo-count">${images.length} 张照片</span>` : `<span class="card-emoji" aria-hidden="true">${emoji[item.category] || '📦'}</span>`}<span class="type-pill">${item.type==='lost'?'寻物启事':'招领启事'}</span><span class="status-pill ${item.status==='resolved'?'resolved':''}">${M.statusText(item)}</span></div>
+      <div class="card-visual ${demoPhoto?'has-demo-photo':''}">${images.length ? `<img class="card-photo ${demoPhoto?'is-demo-photo':''}" src="${esc(images[0])}" alt="${esc(item.title)}的${demoPhoto?'写实示例配图':'照片'}" loading="lazy"><span class="photo-count">${demoPhoto?'示例配图':images.length+' 张照片'}</span>` : `<span class="card-emoji" aria-hidden="true">${itemEmoji(item)}</span>`}<span class="type-pill">${item.type==='lost'?'寻物启事':'招领启事'}</span><span class="status-pill ${item.status==='resolved'?'resolved':''}">${M.statusText(item)}</span></div>
       <div class="card-body"><span class="card-category">${esc(item.category)}</span><h3>${esc(item.title)}</h3><p class="card-desc">${esc(item.description)}</p><div class="card-meta"><span>⌖ ${esc(item.location)}</span><span>${dateText(item.date)}</span></div><div class="card-footer"><small>${mine?'我发布的':esc(item.publisher)}</small><button type="button" data-detail="${esc(item.id)}" aria-label="查看${esc(item.title)}详情">查看详情 →</button></div></div>
     </article>`;
   }
@@ -109,7 +131,8 @@
     const mine=item.ownerId===ownerId;
     const resolved=item.status==='resolved';
     const images=itemPhotos(item);
-    $('#detailContent').innerHTML=`<div class="detail-cover ${item.type==='found'?'found':''} ${images.length?'has-photo':''}">${images.length?`<img id="detailPhoto" class="detail-photo" src="${esc(images[0])}" alt="${esc(item.title)}的照片 1">`:`<span aria-hidden="true">${emoji[item.category]||'📦'}</span>`}<button type="button" class="icon-button" data-close="detailDialog" aria-label="关闭">×</button></div>
+    const demoPhoto=images.length&&images[0]===itemDemoPhoto(item);
+    $('#detailContent').innerHTML=`<div class="detail-cover ${item.type==='found'?'found':''} ${images.length?'has-photo':''} ${demoPhoto?'has-demo-photo':''}">${images.length?`<img id="detailPhoto" class="detail-photo" src="${esc(images[0])}" alt="${esc(item.title)}的${demoPhoto?'写实示例配图':'照片 1'}">${demoPhoto?'<span class="demo-photo-label">示例配图</span>':''}`:`<span aria-hidden="true">${itemEmoji(item)}</span>`}<button type="button" class="icon-button" data-close="detailDialog" aria-label="关闭">×</button></div>
       ${images.length>1?`<div class="detail-photo-strip" aria-label="物品照片">${images.map((src,index)=>`<button type="button" class="${index===0?'selected':''}" data-view-photo="${index}" aria-label="查看第 ${index+1} 张照片" aria-pressed="${index===0}"><img src="${esc(src)}" alt="${esc(item.title)}的照片 ${index+1}"></button>`).join('')}</div>`:''}
       <div class="detail-body"><div class="detail-labels"><span>${item.type==='lost'?'寻物启事':'招领启事'}</span><span class="${resolved?'resolved':''}">${M.statusText(item)}</span></div><h2 id="detailTitle">${esc(item.title)}</h2>
       <div class="detail-facts"><div><small>物品类别</small><strong>${esc(item.category)}</strong></div><div><small>丢失 / 拾取日期</small><strong>${dateText(item.date)}</strong></div><div><small>丢失 / 拾取地点</small><strong>${esc(item.location)}</strong></div><div><small>发布者</small><strong>${esc(item.publisher)}${mine?'（我）':''}</strong></div></div>
