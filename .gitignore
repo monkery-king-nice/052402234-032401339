@@ -1,0 +1,6 @@
+server/data/
+node_modules/
+test-results/
+*.sqlite*
+.env
+*.log

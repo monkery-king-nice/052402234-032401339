@@ -80,9 +80,31 @@
     };
   }
 
+  function validDate(date) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+    const parsed = new Date(date + 'T00:00:00Z');
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
+  }
+  function validateDateRange(filters = {}) {
+    const start = clean(filters.startDate), end = clean(filters.endDate);
+    if ((start && !validDate(start)) || (end && !validDate(end))) return '请选择有效的丢失 / 拾取日期';
+    if (start && end && start > end) return '开始日期不能晚于结束日期，请修改日期范围';
+    return '';
+  }
+  function validateComment(draft) {
+    const errors = {};
+    if (clean(draft.nickname).length < 2 || clean(draft.nickname).length > 24) errors.nickname = '昵称需为 2–24 个字符';
+    if (!clean(draft.body).length || clean(draft.body).length > 500) errors.body = '评论需为 1–500 个字符';
+    return errors;
+  }
   function filterItems(items, filters = {}) {
+    if (validateDateRange(filters)) return [];
+    const start = clean(filters.startDate), end = clean(filters.endDate);
     const query = clean(filters.query).toLocaleLowerCase();
     return items.filter(item => {
+      // Canonical YYYY-MM-DD strings compare by calendar day, without timezone conversion.
+      if (start && (!validDate(item.date) || item.date < start)) return false;
+      if (end && (!validDate(item.date) || item.date > end)) return false;
       if (filters.type && filters.type !== 'all' && item.type !== filters.type) return false;
       if (filters.category && filters.category !== 'all' && item.category !== filters.category) return false;
       if (filters.status && filters.status !== 'all' && item.status !== filters.status) return false;
@@ -135,5 +157,5 @@
     return id;
   }
 
-  return { STORAGE_KEY, OWNER_KEY, CATEGORIES, MAX_IMAGES, MAX_UPLOAD_BYTES, MAX_IMAGE_BYTES, IMAGE_TYPES, isImageDataUrl, validateImageFiles, clean, statusText, validateDraft, createItem, filterItems, updateStatus, removeItem, readItems, saveItems, getOwnerId };
+  return { STORAGE_KEY, OWNER_KEY, CATEGORIES, MAX_IMAGES, MAX_UPLOAD_BYTES, MAX_IMAGE_BYTES, IMAGE_TYPES, isImageDataUrl, validateImageFiles, clean, statusText, validateDraft, validDate, validateDateRange, validateComment, createItem, filterItems, updateStatus, removeItem, readItems, saveItems, getOwnerId };
 });
