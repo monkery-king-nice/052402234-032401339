@@ -7,6 +7,7 @@
 
   const STORAGE_KEY = 'campus-light-items-v1';
   const OWNER_KEY = 'campus-light-owner-v1';
+  const COMMENTS_KEY = 'campus-light-comments-v1:';
   const CATEGORIES = ['证件卡片', '数码设备', '钥匙配饰', '书籍文具', '衣物用品', '其他物品'];
   const TYPES = ['lost', 'found'];
   const MAX_IMAGES = 3;
@@ -80,9 +81,69 @@
     };
   }
 
+  function validDate(date) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+    const parsed = new Date(date + 'T00:00:00Z');
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date;
+  }
+  function validateDateRange(filters = {}) {
+    const start = clean(filters.startDate), end = clean(filters.endDate);
+    if ((start && !validDate(start)) || (end && !validDate(end))) return '请选择有效的丢失 / 拾取日期';
+    if (start && end && start > end) return '开始日期不能晚于结束日期，请修改日期范围';
+    return '';
+  }
+  function validateComment(draft) {
+    const errors = {};
+    if (clean(draft.nickname).length < 2 || clean(draft.nickname).length > 24) errors.nickname = '昵称需为 2–24 个字符';
+    if (!clean(draft.body).length || clean(draft.body).length > 500) errors.body = '评论需为 1–500 个字符';
+    return errors;
+  }
+  function commentStorageKey(itemId) {
+    if (!clean(itemId)) throw new Error('缺少启事标识');
+    return COMMENTS_KEY + encodeURIComponent(itemId);
+  }
+  function readComments(storage, itemId) {
+    try {
+      const raw = storage.getItem(commentStorageKey(itemId));
+      if (raw === null) return [];
+      const comments = JSON.parse(raw);
+      if (!Array.isArray(comments) || comments.some(comment => !comment || comment.itemId !== itemId ||
+        !clean(comment.id) || Object.keys(validateComment(comment)).length ||
+        typeof comment.createdAt !== 'string' || Number.isNaN(Date.parse(comment.createdAt)))) throw new Error('invalid comments');
+      return comments.slice().sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+    } catch (cause) {
+      throw Object.assign(new Error('无法读取这条启事的评论，请检查浏览器本地存储；原数据未被覆盖'), { cause });
+    }
+  }
+  function addComment(storage, itemId, draft, now = new Date(), id) {
+    const errors = validateComment(draft);
+    if (Object.keys(errors).length) throw Object.assign(new Error('请检查昵称和评论'), { fields: errors });
+    const comments = readComments(storage, itemId);
+    const comment = {
+      id: id || ('comment-' + (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : now.getTime() + '-' + Math.random().toString(36).slice(2))),
+      itemId, nickname: clean(draft.nickname), body: clean(draft.body), createdAt: now.toISOString()
+    };
+    try { storage.setItem(commentStorageKey(itemId), JSON.stringify([...comments, comment])); }
+    catch (cause) {
+      const message = cause.name === 'QuotaExceededError' || cause.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+        ? '浏览器存储空间不足，评论未保存；输入与原有评论仍保留'
+        : '无法保存评论，请检查浏览器本地存储权限；输入仍保留';
+      throw Object.assign(new Error(message), { cause });
+    }
+    return comment;
+  }
+  function removeComments(storage, itemId) {
+    try { storage.removeItem(commentStorageKey(itemId)); }
+    catch (cause) { throw Object.assign(new Error('启事已删除，但其评论清理失败；其他启事及评论仍保留'), { cause }); }
+  }
   function filterItems(items, filters = {}) {
+    if (validateDateRange(filters)) return [];
+    const start = clean(filters.startDate), end = clean(filters.endDate);
     const query = clean(filters.query).toLocaleLowerCase();
     return items.filter(item => {
+      // Canonical YYYY-MM-DD strings compare by calendar day, without timezone conversion.
+      if (start && (!validDate(item.date) || item.date < start)) return false;
+      if (end && (!validDate(item.date) || item.date > end)) return false;
       if (filters.type && filters.type !== 'all' && item.type !== filters.type) return false;
       if (filters.category && filters.category !== 'all' && item.category !== filters.category) return false;
       if (filters.status && filters.status !== 'all' && item.status !== filters.status) return false;
@@ -135,5 +196,5 @@
     return id;
   }
 
-  return { STORAGE_KEY, OWNER_KEY, CATEGORIES, MAX_IMAGES, MAX_UPLOAD_BYTES, MAX_IMAGE_BYTES, IMAGE_TYPES, isImageDataUrl, validateImageFiles, clean, statusText, validateDraft, createItem, filterItems, updateStatus, removeItem, readItems, saveItems, getOwnerId };
+  return { STORAGE_KEY, OWNER_KEY, COMMENTS_KEY, CATEGORIES, MAX_IMAGES, MAX_UPLOAD_BYTES, MAX_IMAGE_BYTES, IMAGE_TYPES, isImageDataUrl, validateImageFiles, clean, statusText, validateDraft, validDate, validateDateRange, validateComment, commentStorageKey, readComments, addComment, removeComments, createItem, filterItems, updateStatus, removeItem, readItems, saveItems, getOwnerId };
 });

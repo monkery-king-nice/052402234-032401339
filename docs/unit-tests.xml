@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="评论去除首尾空白并保存，重新读取仍保留昵称、正文、时间和启事ID" time="0.002606" classname="test" file="D:\codex\校园拾光_协作开发\tests\comments.test.js"/>
+	<testcase name="不同启事评论隔离，特殊字符ID不冲突" time="0.003212" classname="test" file="D:\codex\校园拾光_协作开发\tests\comments.test.js"/>
+	<testcase name="评论按时间从早到晚，同一时间维持插入顺序" time="0.000185" classname="test" file="D:\codex\校园拾光_协作开发\tests\comments.test.js"/>
+	<testcase name="空白与超长评论不能写入存储，合法边界可保存" time="0.000425" classname="test" file="D:\codex\校园拾光_协作开发\tests\comments.test.js"/>
+	<testcase name="存储写入失败不覆盖已保存评论，恢复后可以重试" time="0.000214" classname="test" file="D:\codex\校园拾光_协作开发\tests\comments.test.js"/>
+	<testcase name="损坏或串条数据读取报错，提交不会覆盖原数据" time="0.000264" classname="test" file="D:\codex\校园拾光_协作开发\tests\comments.test.js"/>
+	<testcase name="删除仅清理目标评论，其他启事、照片与评论字节不变" time="0.000166" classname="test" file="D:\codex\校园拾光_协作开发\tests\comments.test.js"/>
+	<testcase name="清理失败明确提示且未清空其他评论；HTML样式输入按原文本保存" time="0.000173" classname="test" file="D:\codex\校园拾光_协作开发\tests\comments.test.js"/>
+	<testcase name="日期范围包含开始和结束当天，依据物品日期而非发布时间" time="0.008231" classname="test" file="D:\codex\校园拾光_协作开发\tests\date-comments.test.js"/>
+	<testcase name="仅开始日期与仅结束日期" time="0.000158" classname="test" file="D:\codex\校园拾光_协作开发\tests\date-comments.test.js"/>
+	<testcase name="同一天边界，不限日期与清空条件" time="0.000114" classname="test" file="D:\codex\校园拾光_协作开发\tests\date-comments.test.js"/>
+	<testcase name="无效范围返回提示和空结果；无效日历日期被拒绝" time="0.000185" classname="test" file="D:\codex\校园拾光_协作开发\tests\date-comments.test.js"/>
+	<testcase name="日期与全部已有条件组合；无结果" time="0.000728" classname="test" file="D:\codex\校园拾光_协作开发\tests\date-comments.test.js"/>
+	<testcase name="评论校验去除空白，检查昵称和正文边界" time="0.000555" classname="test" file="D:\codex\校园拾光_协作开发\tests\date-comments.test.js"/>
+	<testcase name="有效寻物信息可创建且默认处于进行中" time="0.001752" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="招领信息显示待认领，完成后显示已归还" time="0.000166" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="寻物完成后显示已找到" time="0.000100" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="空物品名称被拒绝" time="0.000098" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="无效类别被拒绝" time="0.000130" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="无效日历日期被拒绝" time="0.000078" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="过短描述和联系方式被拒绝" time="0.000101" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="创建时会清理首尾空格" time="0.000081" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="关键词可匹配物品名称" time="0.000240" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="关键词可匹配地点和描述且忽略大小写" time="0.000214" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="类型、类别和状态组合筛选" time="0.000589" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="检索结果按发布时间倒序排列" time="0.006451" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="发布者可以标记完成或恢复进行中" time="0.000190" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="非发布者无法修改状态" time="0.000331" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="不存在的信息或非法状态不能更新" time="0.000104" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="发布者仅删除指定信息，其他信息及照片保留且原数组不变" time="0.000622" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="已完成的招领信息也可由发布者删除" time="0.000077" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="拒绝非发布者、空发布者以及删除演示信息" time="0.000109" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="不存在的信息不能删除" time="0.000047" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="删除最后一条信息后刷新仍为空，不恢复成演示数据" time="0.000169" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="信息写入后可从本地存储读取" time="0.000121" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="本地存储损坏时回退到演示数据" time="0.000084" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="同一浏览器复用发布者标识" time="0.001926" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="不上传照片时仍可发布且照片列表为空" time="0.000057" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="发布的照片独立保存，修改草稿数组不会修改信息" time="0.000162" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="照片随信息保存并可在刷新时读取" time="0.000119" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="更新状态保留照片" time="0.000056" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="最多三张照片，超过上限或无效照片数组被拒绝" time="0.000052" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="照片仅接受受限的图片数据，拒绝外部链接和 SVG" time="0.000064" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="压缩图片大小边界，超出 200 KB 被拒绝" time="0.000844" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="上传支持三种格式，拒绝空文件、不支持的格式和超过 5 MB 的文件" time="0.000161" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="旧记录兼容且损坏的照片不会作为图片渲染" time="0.000099" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<testcase name="存储空间不足时给出明确提示且原有存储保留" time="0.000115" classname="test" file="D:\codex\校园拾光_协作开发\tests\model.test.js"/>
+	<!-- tests 47 -->
+	<!-- suites 0 -->
+	<!-- pass 47 -->
+	<!-- fail 0 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 196.4209 -->
+</testsuites>
