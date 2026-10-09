@@ -11,7 +11,7 @@
 | 本文链接 | [发布后填写] |
 | GitHub 主仓库 | [052402234-032401339](https://github.com/monkery-king-nice/052402234-032401339) |
 | 我的 Fork | [2074599796-cpu / 052402234-032401339](https://github.com/2074599796-cpu/052402234-032401339) |
-| 本次 Pull Request | [推送完成后填写真实 PR 链接] |
+| 本次 Pull Request | [主仓库 PR #1](https://github.com/monkery-king-nice/052402234-032401339/pull/1)，已创建、未合并 |
 | 第一次原型 | https://www.figma.com/proto/OVO3mZl0VE9Ro4oNSJZrFY?page-id=0%3A1&node-id=2-2&starting-point-node-id=2%3A2&scaling=scale-down&content-scaling=fixed |
 
 ## 1. 分工与结对过程
@@ -118,7 +118,7 @@ text.textContent=comment.body;
 
 ![手机评论：弹窗滚动与输入区域](docs/screenshots/mobile-comments.png)
 
-![手机发布：测试照片与表单](docs/screenshots/mobile-publish.png)
+![手机发布：照片上传入口与表单提交](docs/screenshots/mobile-publish.png)
 
 ![无效日期范围：保留输入并明确提示](docs/screenshots/invalid-date.png)
 
@@ -162,7 +162,15 @@ Node.js 与开发依赖仅用于测试，日常打开网页无需安装。页面
 
 ## 7. 代码签入记录
 
-[插入 GitHub 真实 commit 历史截图，解释各次提交与功能划分的关系；另一位同学的 fork / Pull Request 记录也应如实展示。]
+本次使用自己的 [Fork](https://github.com/2074599796-cpu/052402234-032401339)，开发分支为 `feat/date-filter-comments-ui`，向主仓库 `main` 发起了 [PR #1](https://github.com/monkery-king-nice/052402234-032401339/pull/1)，没有直接合并。真实功能提交如下：
+
+| Commit | 功能阶段 |
+| --- | --- |
+| [78cb701](https://github.com/2074599796-cpu/052402234-032401339/commit/78cb701) | 日期筛选、共享评论与界面调整；发生在最终纯前端要求提出之前。 |
+| [6e48bbf](https://github.com/2074599796-cpu/052402234-032401339/commit/6e48bbf) | 评论改为 localStorage，移除服务依赖，直接打开 HTML 使用全部功能。 |
+| [2ab1d54](https://github.com/2074599796-cpu/052402234-032401339/commit/2ab1d54) | 更新 README 与博客素材，提交真实 Chrome 验收、截图和流程。 |
+
+[如课程要求历史截图，从以上 PR 的 commits 页面截取真实记录；另一位同学的 fork / Pull Request 记录也应如实展示。后续文档补充提交可在 PR 中查看。]
 
 ## 8. 问题、尝试和收获
 
